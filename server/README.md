@@ -31,6 +31,20 @@ npm run db:setup
 npm run dev
 ```
 
+## Docker
+
+Build da imagem:
+
+```bash
+docker build -t sindroupas-auth .
+```
+
+Rodar o container:
+
+```bash
+docker run --rm -p 3001:3001 --env-file .env sindroupas-auth
+```
+
 ## Exemplos de curl
 
 ### Login
