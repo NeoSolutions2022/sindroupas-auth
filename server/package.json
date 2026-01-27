@@ -1,0 +1,35 @@
+{
+  "name": "sindroupas-auth",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "migrate": "node -r dotenv/config ./node_modules/.bin/node-pg-migrate up",
+    "migrate:down": "node -r dotenv/config ./node_modules/.bin/node-pg-migrate down",
+    "seed": "tsx scripts/seed-admin.ts",
+    "db:setup": "npm run migrate && npm run seed"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "dotenv": "^16.4.5",
+    "fastify": "^4.26.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.5"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^20.12.7",
+    "@types/pg": "^8.11.6",
+    "node-pg-migrate": "^7.7.3",
+    "tsx": "^4.7.2",
+    "typescript": "^5.4.5"
+  },
+  "node-pg-migrate": {
+    "migrations-dir": "migrations"
+  }
+}
