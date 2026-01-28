@@ -25,6 +25,8 @@ Crie as tabelas e faça o seed do admin padrão:
 npm run db:setup
 ```
 
+As migrations usam arquivos `.js` (CommonJS) para compatibilidade com o `node-pg-migrate`.
+
 ## Rodar o servidor
 
 ```bash

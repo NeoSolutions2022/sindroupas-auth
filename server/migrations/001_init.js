@@ -1,8 +1,6 @@
-import { MigrationBuilder } from 'node-pg-migrate';
+exports.shorthands = undefined;
 
-export const shorthands = undefined;
-
-export const up = (pgm: MigrationBuilder): void => {
+exports.up = (pgm) => {
   pgm.createExtension('pgcrypto', { ifNotExists: true });
 
   pgm.createType('admin_user_role', ['superadmin', 'admin'], { ifNotExists: true });
@@ -281,7 +279,7 @@ export const up = (pgm: MigrationBuilder): void => {
   pgm.addIndex('files', ['owner_type', 'owner_id']);
 };
 
-export const down = (pgm: MigrationBuilder): void => {
+exports.down = (pgm) => {
   pgm.dropTable('files');
   pgm.dropTable('relacionamento_pagamentos');
   pgm.dropTable('relacionamento_aportes');
