@@ -1,5 +1,5 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
-import jwt from 'jsonwebtoken';
+import jwt, { Secret, SignOptions } from 'jsonwebtoken';
 import { env } from '../config/env';
 import { comparePassword, findAdminByEmail, findAdminById } from './auth.service';
 import { AuthTokenPayload } from './auth.types';
@@ -45,7 +45,8 @@ export const login = async (
     role: admin.role
   };
 
-  const accessToken = jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn });
+  const signOptions: SignOptions = { expiresIn: env.jwtExpiresIn };
+  const accessToken = jwt.sign(payload, env.jwtSecret as Secret, signOptions);
 
   reply.status(200).send({
     access_token: accessToken,
