@@ -45,8 +45,8 @@ export const login = async (
     role: admin.role
   };
 
-  const signOptions: SignOptions = { expiresIn: env.jwtExpiresIn };
-  const accessToken = jwt.sign(payload, env.jwtSecret as Secret, signOptions);
+  const expiresIn = env.jwtExpiresIn as SignOptions['expiresIn'];
+  const accessToken = jwt.sign(payload, env.jwtSecret as Secret, { expiresIn });
 
   reply.status(200).send({
     access_token: accessToken,
