@@ -16,6 +16,7 @@ Campos obrigatórios:
 - `BCRYPT_ROUNDS` (default 12)
 - `PORT` (default 3001)
 - `NODE_ENV`
+- `CORS_ORIGIN` (default `*`, pode receber múltiplas origens separadas por vírgula)
 
 ## Banco de dados
 

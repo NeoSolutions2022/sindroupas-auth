@@ -16,5 +16,6 @@ export const env = {
   jwtExpiresIn: getEnv('AUTH_JWT_EXPIRES_IN', '12h'),
   bcryptRounds: Number(getEnv('BCRYPT_ROUNDS', '12')),
   port: Number(getEnv('PORT', '3001')),
-  nodeEnv: getEnv('NODE_ENV', 'development')
+  nodeEnv: getEnv('NODE_ENV', 'development'),
+  corsOrigin: getEnv('CORS_ORIGIN', '*')
 };
