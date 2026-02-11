@@ -41,6 +41,11 @@ export const validateCreateBody = (payload: unknown): BoletoCreateBody => {
   mustBeNonEmptyString(issues, 'dataVencimento', body.dataVencimento);
   mustBeNumber(issues, 'valorCalculado', body.valorCalculado);
 
+  if (typeof body.valorCalculado === 'number' && body.valorCalculado <= 0) {
+    issues.push({ field: 'valorCalculado', message: 'Deve ser maior que zero.' });
+  }
+
+
   if (body.tipo === 'mensalidade') {
     mustBeNonEmptyString(issues, 'competenciaInicial', body.competenciaInicial);
     mustBeNonEmptyString(issues, 'competenciaFinal', body.competenciaFinal);
