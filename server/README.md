@@ -17,6 +17,12 @@ Campos obrigatórios:
 - `PORT` (default 3001)
 - `NODE_ENV`
 - `CORS_ORIGIN` (default `*`, pode receber múltiplas origens separadas por vírgula)
+- `EFI_BASE_URL`
+- `EFI_CLIENT_ID`
+- `EFI_CLIENT_SECRET`
+- `EFI_CERT_PATH` (opcional)
+- `EFI_CERT_PASS` (opcional)
+- `EFI_TIMEOUT_MS` (default 10000)
 
 ## Banco de dados
 
@@ -55,7 +61,7 @@ docker run --rm -p 3001:3001 --env-file .env sindroupas-auth
 ```bash
 curl -X POST http://localhost:3001/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"sindroupas@email.com","password":"admin123%"}'
+  -d '{"email":"sindroupas@email","password":"admin123%"}'
 ```
 
 ### Me
@@ -96,3 +102,21 @@ As tabelas abaixo são expostas pelo Hasura para CRUD. O front deve consumir o G
 ### Arquivos
 
 - **files**: anexos genéricos por `owner_type` e `owner_id` com `file_url`, `content_type` e `metadata`.
+
+
+## Ponte EFI de boletos
+
+Novas rotas protegidas no auth:
+
+- `POST /api/efi/boletos`
+- `GET /api/efi/boletos/:efiChargeId`
+- `POST /api/efi/boletos/:efiChargeId/acoes`
+- `POST /api/efi/boletos/sync`
+
+Regras:
+
+- Todas as rotas exigem `Authorization: Bearer <token>`.
+- Criação e ações exigem autorização financeira de escrita.
+- Consultas e sync exigem autorização financeira de leitura.
+- Payload inválido retorna `422` com resposta padronizada.
+- Respostas de sucesso retornam payload normalizado com `status_ui` e `status_efi_raw`.
