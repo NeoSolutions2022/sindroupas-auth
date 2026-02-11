@@ -24,7 +24,7 @@ Campos obrigatórios:
 - `EFI_CERT_PASS` (opcional)
 - `EFI_TIMEOUT_MS` (default 10000)
 
-> Para API de cobranças/boletos da EFI, normalmente é necessário certificado cliente (mTLS). Configure `EFI_CERT_PATH` (arquivo .p12/.pem no container) e `EFI_CERT_PASS` quando aplicável.
+> Para API de cobranças/boleto (Efi Cobranças), normalmente **não** é obrigatório certificado cliente. Se seu ambiente exigir mTLS, configure `EFI_CERT_PATH` e `EFI_CERT_PASS`.
 
 
 ## Banco de dados
@@ -123,3 +123,6 @@ Regras:
 - Consultas e sync exigem autorização financeira de leitura.
 - Payload inválido retorna `422` com resposta padronizada.
 - Respostas de sucesso retornam payload normalizado com `status_ui` e `status_efi_raw`.
+
+
+Exemplo recomendado de `EFI_BASE_URL`: `https://cobrancas.api.efipay.com.br/v1` (ou homologação equivalente).

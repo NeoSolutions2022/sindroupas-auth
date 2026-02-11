@@ -59,7 +59,9 @@ const withRouteLog = async <T>(
         efiChargeId,
         durationMs: Date.now() - startedAt,
         result: 'error',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
+        errorCode: error instanceof IntegrationError ? error.code : undefined,
+        errorDetails: error instanceof IntegrationError ? error.details : undefined
       },
       'EFI bridge request failed'
     );

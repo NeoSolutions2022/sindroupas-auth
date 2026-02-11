@@ -16,6 +16,13 @@ interface HttpJsonResponse {
   body: unknown;
 }
 
+const withPath = (baseUrl: string, path: string): string => {
+  const base = baseUrl.replace(/\/$/, '');
+  const baseWithVersion = /\/v\d+$/i.test(base) ? base : `${base}/v1`;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${baseWithVersion}${normalizedPath}`;
+};
+
 const requestJson = (
   urlString: string,
   method: 'GET' | 'POST' | 'PUT',
@@ -112,34 +119,50 @@ export class EfiClient {
     return this.certConfig;
   }
 
+  private async requestTokenWithPath(path: '/authorize' | '/oauth/token'): Promise<EfiTokenResponse> {
+    const basicAuth = Buffer.from(`${env.efiClientId}:${env.efiClientSecret}`).toString('base64');
+
+    const { statusCode, body } = await requestJson(
+      withPath(env.efiBaseUrl, path),
+      'POST',
+      {
+        Authorization: `Basic ${basicAuth}`,
+        'Content-Type': 'application/json'
+      },
+      env.efiTimeoutMs,
+      { grant_type: 'client_credentials' },
+      this.getCertConfig()
+    );
+
+    if (statusCode < 200 || statusCode >= 300) {
+      throw mapEfiError(statusCode, body);
+    }
+
+    const token = body as EfiTokenResponse;
+    if (!token.access_token || !token.expires_in) {
+      throw new IntegrationError(502, 'EFI_INVALID_TOKEN_RESPONSE', 'Resposta de token EFI inválida.', body);
+    }
+
+    return token;
+  }
+
   private async getAccessToken(): Promise<string> {
     const now = Date.now();
     if (this.tokenCache && this.tokenCache.expiresAt > now + 15_000) {
       return this.tokenCache.accessToken;
     }
 
-    const basicAuth = Buffer.from(`${env.efiClientId}:${env.efiClientSecret}`).toString('base64');
-
     try {
-      const { statusCode, body } = await requestJson(
-        `${env.efiBaseUrl}/oauth/token`,
-        'POST',
-        {
-          Authorization: `Basic ${basicAuth}`,
-          'Content-Type': 'application/json'
-        },
-        env.efiTimeoutMs,
-        { grant_type: 'client_credentials' },
-        this.getCertConfig()
-      );
+      let token: EfiTokenResponse;
 
-      if (statusCode < 200 || statusCode >= 300) {
-        throw mapEfiError(statusCode, body);
-      }
-
-      const token = body as EfiTokenResponse;
-      if (!token.access_token || !token.expires_in) {
-        throw new IntegrationError(502, 'EFI_INVALID_TOKEN_RESPONSE', 'Resposta de token EFI inválida.', body);
+      try {
+        token = await this.requestTokenWithPath('/authorize');
+      } catch (primaryError) {
+        if (primaryError instanceof IntegrationError && [404, 400, 502].includes(primaryError.statusCode)) {
+          token = await this.requestTokenWithPath('/oauth/token');
+        } else {
+          throw primaryError;
+        }
       }
 
       const expiresInMs = Math.max(30, token.expires_in) * 1000;
@@ -157,7 +180,8 @@ export class EfiClient {
       const message = error instanceof Error ? error.message : 'unknown_error';
       throw new IntegrationError(502, 'EFI_AUTH_CONNECTION_ERROR', 'Erro ao autenticar na EFI.', {
         reason: message,
-        certPathConfigured: Boolean(env.efiCertPath)
+        certPathConfigured: Boolean(env.efiCertPath),
+        baseUrl: env.efiBaseUrl
       });
     }
   }
@@ -167,7 +191,7 @@ export class EfiClient {
 
     try {
       const { statusCode, body: responseBody } = await requestJson(
-        `${env.efiBaseUrl}${path}`,
+        withPath(env.efiBaseUrl, path),
         method,
         {
           Authorization: `Bearer ${token}`,
@@ -196,41 +220,42 @@ export class EfiClient {
 
       throw new IntegrationError(502, 'EFI_UPSTREAM_ERROR', 'Erro de comunicação com a EFI.', {
         reason: message,
-        certPathConfigured: Boolean(env.efiCertPath)
+        certPathConfigured: Boolean(env.efiCertPath),
+        baseUrl: env.efiBaseUrl
       });
     }
   }
 
   async charge(payload: unknown): Promise<Record<string, unknown>> {
-    return this.request<Record<string, unknown>>('/v1/charge', 'POST', payload);
+    return this.request<Record<string, unknown>>('/charge', 'POST', payload);
   }
 
   async billet(chargeId: string, payload: unknown): Promise<Record<string, unknown>> {
-    return this.request<Record<string, unknown>>(`/v1/charge/${chargeId}/billet`, 'PUT', payload);
+    return this.request<Record<string, unknown>>(`/charge/${chargeId}/billet`, 'PUT', payload);
   }
 
   async getCharge(chargeId: string): Promise<Record<string, unknown>> {
-    return this.request<Record<string, unknown>>(`/v1/charge/${chargeId}`, 'GET');
+    return this.request<Record<string, unknown>>(`/charge/${chargeId}`, 'GET');
   }
 
   async cancel(chargeId: string, payload: unknown): Promise<Record<string, unknown>> {
-    return this.request<Record<string, unknown>>(`/v1/charge/${chargeId}/cancel`, 'PUT', payload);
+    return this.request<Record<string, unknown>>(`/charge/${chargeId}/cancel`, 'PUT', payload);
   }
 
   async resend(chargeId: string, payload: unknown): Promise<Record<string, unknown>> {
-    return this.request<Record<string, unknown>>(`/v1/charge/${chargeId}/billet/resend`, 'POST', payload);
+    return this.request<Record<string, unknown>>(`/charge/${chargeId}/billet/resend`, 'POST', payload);
   }
 
   async history(chargeId: string, payload: unknown): Promise<Record<string, unknown>> {
-    return this.request<Record<string, unknown>>(`/v1/charge/${chargeId}/history`, 'POST', payload);
+    return this.request<Record<string, unknown>>(`/charge/${chargeId}/history`, 'POST', payload);
   }
 
   async pay(chargeId: string, payload: unknown): Promise<Record<string, unknown>> {
-    return this.request<Record<string, unknown>>(`/v1/charge/${chargeId}/pay`, 'POST', payload);
+    return this.request<Record<string, unknown>>(`/charge/${chargeId}/pay`, 'POST', payload);
   }
 
   async settle(chargeId: string, payload: unknown): Promise<Record<string, unknown>> {
-    return this.request<Record<string, unknown>>(`/v1/charge/${chargeId}/settle`, 'PUT', payload);
+    return this.request<Record<string, unknown>>(`/charge/${chargeId}/settle`, 'PUT', payload);
   }
 }
 
