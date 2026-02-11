@@ -24,6 +24,9 @@ Campos obrigatórios:
 - `EFI_CERT_PASS` (opcional)
 - `EFI_TIMEOUT_MS` (default 10000)
 
+> Para API de cobranças/boletos da EFI, normalmente é necessário certificado cliente (mTLS). Configure `EFI_CERT_PATH` (arquivo .p12/.pem no container) e `EFI_CERT_PASS` quando aplicável.
+
+
 ## Banco de dados
 
 Crie as tabelas e faça o seed do admin padrão:
