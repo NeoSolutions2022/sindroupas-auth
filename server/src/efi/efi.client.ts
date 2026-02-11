@@ -23,6 +23,22 @@ const withPath = (baseUrl: string, path: string): string => {
   return `${baseWithVersion}${normalizedPath}`;
 };
 
+const getCandidateBaseUrls = (baseUrl: string): string[] => {
+  const base = baseUrl.trim().replace(/\/$/, '');
+  const candidates = [base];
+
+  if (base.includes('apis.gerencianet.com.br') || base.includes('api.gerencianet.com.br')) {
+    candidates.push('https://cobrancas.api.efipay.com.br/v1');
+    candidates.push('https://cobrancas-h.api.efipay.com.br/v1');
+  }
+
+  if (base.includes('apis.efipay.com.br')) {
+    candidates.push('https://cobrancas.api.efipay.com.br/v1');
+  }
+
+  return Array.from(new Set(candidates));
+};
+
 const requestJson = (
   urlString: string,
   method: 'GET' | 'POST' | 'PUT',
@@ -100,6 +116,7 @@ const requestJson = (
 export class EfiClient {
   private tokenCache: TokenCache | null = null;
   private certConfig: { pfx: Buffer; passphrase?: string } | null = null;
+  private resolvedBaseUrl: string | null = null;
 
   private getCertConfig(): { pfx: Buffer; passphrase?: string } | undefined {
     if (!env.efiCertPath) {
@@ -119,11 +136,11 @@ export class EfiClient {
     return this.certConfig;
   }
 
-  private async requestTokenWithPath(path: '/authorize' | '/oauth/token'): Promise<EfiTokenResponse> {
+  private async requestTokenWithPath(baseUrl: string, path: '/authorize' | '/oauth/token'): Promise<EfiTokenResponse> {
     const basicAuth = Buffer.from(`${env.efiClientId}:${env.efiClientSecret}`).toString('base64');
 
     const { statusCode, body } = await requestJson(
-      withPath(env.efiBaseUrl, path),
+      withPath(baseUrl, path),
       'POST',
       {
         Authorization: `Basic ${basicAuth}`,
@@ -152,46 +169,66 @@ export class EfiClient {
       return this.tokenCache.accessToken;
     }
 
-    try {
-      let token: EfiTokenResponse;
+    const candidateBaseUrls = this.resolvedBaseUrl
+      ? [this.resolvedBaseUrl]
+      : getCandidateBaseUrls(env.efiBaseUrl);
 
+    let lastError: unknown;
+
+    for (const baseUrl of candidateBaseUrls) {
       try {
-        token = await this.requestTokenWithPath('/authorize');
-      } catch (primaryError) {
-        if (primaryError instanceof IntegrationError && [404, 400, 502].includes(primaryError.statusCode)) {
-          token = await this.requestTokenWithPath('/oauth/token');
-        } else {
-          throw primaryError;
+        let token: EfiTokenResponse;
+
+        try {
+          token = await this.requestTokenWithPath(baseUrl, '/authorize');
+        } catch (primaryError) {
+          if (primaryError instanceof IntegrationError && [404, 400, 502].includes(primaryError.statusCode)) {
+            token = await this.requestTokenWithPath(baseUrl, '/oauth/token');
+          } else {
+            throw primaryError;
+          }
         }
+
+        const expiresInMs = Math.max(30, token.expires_in) * 1000;
+        this.tokenCache = {
+          accessToken: token.access_token,
+          expiresAt: now + expiresInMs
+        };
+        this.resolvedBaseUrl = baseUrl;
+
+        return token.access_token;
+      } catch (error) {
+        lastError = error;
       }
+    }
 
-      const expiresInMs = Math.max(30, token.expires_in) * 1000;
-      this.tokenCache = {
-        accessToken: token.access_token,
-        expiresAt: now + expiresInMs
-      };
-
-      return token.access_token;
-    } catch (error) {
-      if (error instanceof IntegrationError) {
-        throw error;
-      }
-
-      const message = error instanceof Error ? error.message : 'unknown_error';
-      throw new IntegrationError(502, 'EFI_AUTH_CONNECTION_ERROR', 'Erro ao autenticar na EFI.', {
-        reason: message,
-        certPathConfigured: Boolean(env.efiCertPath),
-        baseUrl: env.efiBaseUrl
+    if (lastError instanceof IntegrationError) {
+      throw new IntegrationError(lastError.statusCode, lastError.code, lastError.message, {
+        ...(typeof lastError.details === 'object' && lastError.details ? lastError.details : {}),
+        candidateBaseUrls
       });
     }
+
+    const message = lastError instanceof Error ? lastError.message : 'unknown_error';
+    throw new IntegrationError(502, 'EFI_AUTH_CONNECTION_ERROR', 'Erro ao autenticar na EFI.', {
+      reason: message,
+      certPathConfigured: Boolean(env.efiCertPath),
+      baseUrl: env.efiBaseUrl,
+      candidateBaseUrls
+    });
+  }
+
+  private getRequestBaseUrl(): string {
+    return this.resolvedBaseUrl ?? env.efiBaseUrl;
   }
 
   private async request<T>(path: string, method: 'GET' | 'POST' | 'PUT', body?: unknown): Promise<T> {
     const token = await this.getAccessToken();
+    const baseUrl = this.getRequestBaseUrl();
 
     try {
       const { statusCode, body: responseBody } = await requestJson(
-        withPath(env.efiBaseUrl, path),
+        withPath(baseUrl, path),
         method,
         {
           Authorization: `Bearer ${token}`,
@@ -221,7 +258,8 @@ export class EfiClient {
       throw new IntegrationError(502, 'EFI_UPSTREAM_ERROR', 'Erro de comunicação com a EFI.', {
         reason: message,
         certPathConfigured: Boolean(env.efiCertPath),
-        baseUrl: env.efiBaseUrl
+        baseUrl,
+        requestedPath: path
       });
     }
   }

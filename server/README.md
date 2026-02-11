@@ -26,6 +26,8 @@ Campos obrigatórios:
 
 > Para API de cobranças/boleto (Efi Cobranças), normalmente **não** é obrigatório certificado cliente. Se seu ambiente exigir mTLS, configure `EFI_CERT_PATH` e `EFI_CERT_PASS`.
 
+> Se você ainda estiver com `EFI_BASE_URL=https://apis.gerencianet.com.br`, migre para `https://cobrancas.api.efipay.com.br/v1` (ou homologação `https://cobrancas-h.api.efipay.com.br/v1`).
+
 
 ## Banco de dados
 
