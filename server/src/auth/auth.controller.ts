@@ -9,6 +9,15 @@ interface LoginBody {
   password?: string;
 }
 
+
+const resolveScopesByRole = (role: AuthTokenPayload['role']): string[] => {
+  if (role === 'admin' || role === 'superadmin') {
+    return ['financeiro:read', 'financeiro:write'];
+  }
+
+  return [];
+};
+
 export const login = async (
   request: FastifyRequest<{ Body: LoginBody }>,
   reply: FastifyReply
@@ -42,7 +51,8 @@ export const login = async (
   const payload: AuthTokenPayload = {
     sub: admin.id,
     email: admin.email,
-    role: admin.role
+    role: admin.role,
+    scopes: resolveScopesByRole(admin.role)
   };
 
   const expiresIn = env.jwtExpiresIn as SignOptions['expiresIn'];

@@ -9,6 +9,28 @@ declare module 'fastify' {
   }
 }
 
+const financialWriteRoles: AuthTokenPayload['role'][] = ['admin', 'superadmin'];
+const financialReadRoles: AuthTokenPayload['role'][] = ['admin', 'superadmin'];
+
+
+const hasScopeOrRole = (
+  request: FastifyRequest,
+  requiredScope: string,
+  allowedRoles: AuthTokenPayload['role'][]
+): boolean => {
+  const user = request.authUser;
+  if (!user) {
+    return false;
+  }
+
+  if (user.scopes?.includes(requiredScope)) {
+    return true;
+  }
+
+  return allowedRoles.includes(user.role);
+};
+
+
 export const requireAuth = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
   const header = request.headers.authorization;
 
@@ -24,6 +46,26 @@ export const requireAuth = async (request: FastifyRequest, reply: FastifyReply):
     request.authUser = payload;
   } catch (error) {
     reply.status(401).send({ message: 'Token inválido.' });
+    return;
+  }
+};
+
+export const requireFinancialWrite = async (
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> => {
+  if (!hasScopeOrRole(request, 'financeiro:write', financialWriteRoles)) {
+    reply.status(403).send({ message: 'Sem permissão para ação financeira.' });
+    return;
+  }
+};
+
+export const requireFinancialRead = async (
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> => {
+  if (!hasScopeOrRole(request, 'financeiro:read', financialReadRoles)) {
+    reply.status(403).send({ message: 'Sem permissão para consulta financeira.' });
     return;
   }
 };

@@ -13,4 +13,5 @@ export interface AuthTokenPayload {
   sub: string;
   email: string;
   role: AdminRole;
+  scopes?: string[];
 }

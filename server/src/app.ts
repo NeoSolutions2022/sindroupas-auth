@@ -2,6 +2,7 @@ import cors from '@fastify/cors';
 import Fastify from 'fastify';
 import { env } from './config/env';
 import { authRoutes } from './auth/auth.routes';
+import { efiRoutes } from './efi/efi.routes';
 
 const resolveCorsOrigin = (): string[] | boolean => {
   if (env.corsOrigin === '*') {
@@ -24,6 +25,7 @@ export const buildApp = () => {
   });
 
   app.register(authRoutes);
+  app.register(efiRoutes);
 
   app.get('/health', async () => ({ status: 'ok' }));
 
