@@ -12,7 +12,6 @@ declare module 'fastify' {
 const financialWriteRoles: AuthTokenPayload['role'][] = ['admin', 'superadmin'];
 const financialReadRoles: AuthTokenPayload['role'][] = ['admin', 'superadmin'];
 
-
 const hasScopeOrRole = (
   request: FastifyRequest,
   requiredScope: string,
@@ -30,6 +29,20 @@ const hasScopeOrRole = (
   return allowedRoles.includes(user.role);
 };
 
+const verifyTokenWithAvailableSecrets = (token: string): AuthTokenPayload => {
+  const secrets = [env.jwtSecret, ...env.jwtFallbackSecrets].filter(Boolean);
+  let lastError: unknown;
+
+  for (const secret of secrets) {
+    try {
+      return jwt.verify(token, secret) as AuthTokenPayload;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError ?? new Error('Token verification failed');
+};
 
 export const requireAuth = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
   const header = request.headers.authorization;
@@ -42,9 +55,19 @@ export const requireAuth = async (request: FastifyRequest, reply: FastifyReply):
   const token = header.replace('Bearer ', '').trim();
 
   try {
-    const payload = jwt.verify(token, env.jwtSecret) as AuthTokenPayload;
+    const payload = verifyTokenWithAvailableSecrets(token);
     request.authUser = payload;
   } catch (error) {
+    request.log.warn(
+      {
+        requestId: request.id,
+        route: request.routeOptions.url,
+        error: error instanceof Error ? error.message : 'Token verification failed',
+        fallbackSecretsCount: env.jwtFallbackSecrets.length
+      },
+      'JWT verification failed'
+    );
+
     reply.status(401).send({ message: 'Token inválido.' });
     return;
   }

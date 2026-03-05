@@ -18,9 +18,23 @@ const getOptionalEnv = (key: string): string | undefined => {
   return value;
 };
 
+
+const getEnvList = (key: string): string[] => {
+  const value = process.env[key];
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+};
+
 export const env = {
   databaseUrl: getEnv('DATABASE_URL'),
   jwtSecret: getEnv('AUTH_JWT_SECRET'),
+  jwtFallbackSecrets: getEnvList('AUTH_JWT_FALLBACK_SECRETS'),
   jwtExpiresIn: getEnv('AUTH_JWT_EXPIRES_IN', '12h'),
   bcryptRounds: Number(getEnv('BCRYPT_ROUNDS', '12')),
   port: Number(getEnv('PORT', '3001')),

@@ -12,6 +12,7 @@ Campos obrigatórios:
 
 - `DATABASE_URL`
 - `AUTH_JWT_SECRET`
+- `AUTH_JWT_FALLBACK_SECRETS` (opcional; segredos antigos separados por vírgula para rotação de token)
 - `AUTH_JWT_EXPIRES_IN` (default 12h)
 - `BCRYPT_ROUNDS` (default 12)
 - `PORT` (default 3001)
