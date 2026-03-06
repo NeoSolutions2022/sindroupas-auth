@@ -51,9 +51,10 @@ const getEmpresa = async (empresaId: string): Promise<EmpresaLookup | null> => {
 };
 
 export const createBoleto = async (payload: BoletoCreateBody, requestId: string): Promise<BridgeResponse> => {
-  const dueDate = normalizeDueDate(payload.dataVencimento);
+  try {
+    const dueDate = normalizeDueDate(payload.dataVencimento);
 
-  const chargeRaw = await efiClient.charge({
+    const chargeRaw = await efiClient.charge({
     items: [
       {
         name: payload.empresaNome ?? 'Boleto Sindicato',
@@ -100,17 +101,28 @@ export const createBoleto = async (payload: BoletoCreateBody, requestId: string)
     }
   });
 
-  return {
-    ok: true,
-    acao: 'criar',
-    boleto: normalizeEfiCharge({
-      ...(chargeRaw.data as Record<string, unknown> | undefined),
-      ...(billetRaw.data as Record<string, unknown> | undefined),
-      charge_id: chargeId
-    }),
-    raw: { charge: chargeRaw, billet: billetRaw },
-    requestId
-  };
+    return {
+      ok: true,
+      acao: 'criar',
+      boleto: normalizeEfiCharge({
+        ...(chargeRaw.data as Record<string, unknown> | undefined),
+        ...(billetRaw.data as Record<string, unknown> | undefined),
+        charge_id: chargeId
+      }),
+      raw: { charge: chargeRaw, billet: billetRaw },
+      requestId
+    };
+  } catch (error) {
+    if (error instanceof IntegrationError) {
+      throw error;
+    }
+
+    throw new IntegrationError(502, 'CREATE_BOLETO_FAILED', 'Falha inesperada ao criar boleto.', {
+      requestId,
+      payload,
+      reason: error instanceof Error ? error.message : 'unknown_error'
+    });
+  }
 };
 
 export const getBoleto = async (efiChargeId: string, requestId: string): Promise<BridgeResponse> => {

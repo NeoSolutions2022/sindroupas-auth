@@ -22,7 +22,8 @@ const handleControllerError = (error: unknown, reply: FastifyReply, requestId: s
     ok: false,
     error: {
       code: 'INTERNAL_ERROR',
-      message: 'Erro interno inesperado.'
+      message: 'Erro interno inesperado.',
+      details: { reason: error instanceof Error ? error.message : 'unknown_error' }
     },
     requestId
   });
@@ -60,7 +61,9 @@ const withRouteLog = async <T>(
         durationMs: Date.now() - startedAt,
         result: 'error',
         error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
         errorCode: error instanceof IntegrationError ? error.code : undefined,
+        errorStatus: error instanceof IntegrationError ? error.statusCode : undefined,
         errorDetails: error instanceof IntegrationError ? error.details : undefined
       },
       'EFI bridge request failed'

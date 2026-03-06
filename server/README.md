@@ -126,7 +126,8 @@ Regras:
 - Consultas e sync exigem autorização financeira de leitura.
 - Payload inválido retorna `422` com resposta padronizada.
 - Respostas de sucesso retornam payload normalizado com `status_ui` e `status_efi_raw`.
-- Na criação de boleto, `valorCalculado` deve ser maior que zero e a empresa precisa ter CNPJ válido no cadastro para emissão via API de cobrança.
+- Em caso de erro da EFI, a API retorna `error.details` com informações de debug (`stage`, `method`, `endpoint`, `responseStatus`, `responseBody`) para facilitar diagnóstico de 400/502.
+- Na criação de boleto, `valorCalculado` deve ser numérico e a empresa precisa ter CNPJ válido no cadastro para emissão via API de cobrança.
 
 
 Exemplo recomendado de `EFI_BASE_URL`: `https://cobrancas.api.efipay.com.br/v1` (ou homologação equivalente).

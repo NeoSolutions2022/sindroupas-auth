@@ -19,26 +19,50 @@ export const badRequestError = (message: string, details?: unknown): Integration
   return new IntegrationError(400, 'BAD_REQUEST', message, details);
 };
 
-export const mapEfiError = (statusCode: number, body: unknown): IntegrationError => {
+interface EfiErrorContext {
+  stage: 'token' | 'request';
+  method: string;
+  endpoint: string;
+  baseUrl: string;
+  requestBody?: unknown;
+  responseBody?: unknown;
+  responseStatus?: number;
+}
+
+export const mapEfiError = (statusCode: number, body: unknown, context: EfiErrorContext): IntegrationError => {
+  const details = {
+    ...context,
+    responseStatus: statusCode,
+    responseBody: context.responseBody ?? body
+  };
+
   if (statusCode === 404) {
-    return new IntegrationError(404, 'EFI_NOT_FOUND', 'Cobrança EFI não encontrada.', body);
+    return new IntegrationError(404, 'EFI_NOT_FOUND', 'Cobrança EFI não encontrada.', details);
   }
 
   if (statusCode === 409) {
-    return new IntegrationError(409, 'EFI_CONFLICT', 'Conflito na operação EFI.', body);
+    return new IntegrationError(409, 'EFI_CONFLICT', 'Conflito na operação EFI.', details);
+  }
+
+  if (statusCode === 422) {
+    return new IntegrationError(422, 'EFI_VALIDATION_ERROR', 'Validação rejeitada pela EFI.', details);
+  }
+
+  if (statusCode === 401 || statusCode === 403) {
+    return new IntegrationError(502, 'EFI_AUTH_REJECTED', 'Autenticação/autorização rejeitada pela EFI.', details);
   }
 
   if (statusCode === 504) {
-    return new IntegrationError(504, 'EFI_TIMEOUT', 'Timeout na integração com a EFI.', body);
+    return new IntegrationError(504, 'EFI_TIMEOUT', 'Timeout na integração com a EFI.', details);
   }
 
   if (statusCode >= 500) {
-    return new IntegrationError(502, 'EFI_UPSTREAM_ERROR', 'Erro retornado pela EFI.', body);
+    return new IntegrationError(502, 'EFI_UPSTREAM_ERROR', 'Erro retornado pela EFI.', details);
   }
 
   if (statusCode >= 400) {
-    return new IntegrationError(400, 'EFI_BAD_REQUEST', 'Requisição inválida para EFI.', body);
+    return new IntegrationError(400, 'EFI_BAD_REQUEST', 'Requisição inválida para EFI.', details);
   }
 
-  return new IntegrationError(502, 'EFI_UNKNOWN_ERROR', 'Falha inesperada na integração EFI.', body);
+  return new IntegrationError(502, 'EFI_UNKNOWN_ERROR', 'Falha inesperada na integração EFI.', details);
 };

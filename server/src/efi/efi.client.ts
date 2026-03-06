@@ -138,26 +138,41 @@ export class EfiClient {
 
   private async requestTokenWithPath(baseUrl: string, path: '/authorize' | '/oauth/token'): Promise<EfiTokenResponse> {
     const basicAuth = Buffer.from(`${env.efiClientId}:${env.efiClientSecret}`).toString('base64');
+    const endpoint = withPath(baseUrl, path);
+    const tokenBody = { grant_type: 'client_credentials' };
 
     const { statusCode, body } = await requestJson(
-      withPath(baseUrl, path),
+      endpoint,
       'POST',
       {
         Authorization: `Basic ${basicAuth}`,
         'Content-Type': 'application/json'
       },
       env.efiTimeoutMs,
-      { grant_type: 'client_credentials' },
+      tokenBody,
       this.getCertConfig()
     );
 
     if (statusCode < 200 || statusCode >= 300) {
-      throw mapEfiError(statusCode, body);
+      throw mapEfiError(statusCode, body, {
+        stage: 'token',
+        method: 'POST',
+        endpoint,
+        baseUrl,
+        requestBody: tokenBody,
+        responseBody: body
+      });
     }
 
     const token = body as EfiTokenResponse;
     if (!token.access_token || !token.expires_in) {
-      throw new IntegrationError(502, 'EFI_INVALID_TOKEN_RESPONSE', 'Resposta de token EFI inválida.', body);
+      throw new IntegrationError(502, 'EFI_INVALID_TOKEN_RESPONSE', 'Resposta de token EFI inválida.', {
+        stage: 'token',
+        method: 'POST',
+        endpoint,
+        baseUrl,
+        responseBody: body
+      });
     }
 
     return token;
@@ -205,7 +220,8 @@ export class EfiClient {
     if (lastError instanceof IntegrationError) {
       throw new IntegrationError(lastError.statusCode, lastError.code, lastError.message, {
         ...(typeof lastError.details === 'object' && lastError.details ? lastError.details : {}),
-        candidateBaseUrls
+        candidateBaseUrls,
+        source: 'getAccessToken'
       });
     }
 
@@ -214,7 +230,8 @@ export class EfiClient {
       reason: message,
       certPathConfigured: Boolean(env.efiCertPath),
       baseUrl: env.efiBaseUrl,
-      candidateBaseUrls
+      candidateBaseUrls,
+      source: 'getAccessToken'
     });
   }
 
@@ -225,10 +242,11 @@ export class EfiClient {
   private async request<T>(path: string, method: 'GET' | 'POST' | 'PUT', body?: unknown): Promise<T> {
     const token = await this.getAccessToken();
     const baseUrl = this.getRequestBaseUrl();
+    const endpoint = withPath(baseUrl, path);
 
     try {
       const { statusCode, body: responseBody } = await requestJson(
-        withPath(baseUrl, path),
+        endpoint,
         method,
         {
           Authorization: `Bearer ${token}`,
@@ -240,7 +258,14 @@ export class EfiClient {
       );
 
       if (statusCode < 200 || statusCode >= 300) {
-        throw mapEfiError(statusCode, responseBody);
+        throw mapEfiError(statusCode, responseBody, {
+          stage: 'request',
+          method,
+          endpoint,
+          baseUrl,
+          requestBody: body,
+          responseBody
+        });
       }
 
       return responseBody as T;
@@ -252,14 +277,23 @@ export class EfiClient {
       const message = error instanceof Error ? error.message : 'unknown_error';
 
       if (message.toLowerCase().includes('timeout')) {
-        throw new IntegrationError(504, 'EFI_TIMEOUT', 'Timeout na integração com a EFI.');
+        throw new IntegrationError(504, 'EFI_TIMEOUT', 'Timeout na integração com a EFI.', {
+          stage: 'request',
+          method,
+          endpoint,
+          baseUrl,
+          requestBody: body
+        });
       }
 
       throw new IntegrationError(502, 'EFI_UPSTREAM_ERROR', 'Erro de comunicação com a EFI.', {
         reason: message,
         certPathConfigured: Boolean(env.efiCertPath),
         baseUrl,
-        requestedPath: path
+        requestedPath: path,
+        method,
+        endpoint,
+        requestBody: body
       });
     }
   }
