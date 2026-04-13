@@ -8,6 +8,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "start:docker": "npm run migrate && npm run start",
     "migrate": "node -r dotenv/config ./node_modules/.bin/node-pg-migrate up",
     "migrate:down": "node -r dotenv/config ./node_modules/.bin/node-pg-migrate down",
     "seed": "tsx scripts/seed-admin.ts",
