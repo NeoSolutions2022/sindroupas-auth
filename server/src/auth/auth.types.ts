@@ -1,6 +1,5 @@
 export type AdminRole = 'admin' | 'superadmin';
 export type AdminStatus = 'active' | 'blocked';
-export type AppRole = 'user';
 export type AuthRole = 'admin' | 'user';
 
 export interface AdminUser {
@@ -18,6 +17,22 @@ export interface AppUser {
   profile_id: string;
   profile_code: string;
   is_active: boolean;
+  created_at: string;
+}
+
+export interface AppUserListItem {
+  id: string;
+  email: string;
+  name: string | null;
+  profile_code: string;
+  profile_label: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface AppProfile {
+  id: string;
+  code: string;
 }
 
 export interface AuthTokenPayload {

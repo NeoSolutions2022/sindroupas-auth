@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import {
   adminCreateAppUser,
+  adminListAppUsers,
   adminResetAppUserPassword,
   adminSetAppUserActive,
   adminUpdateAppUser,
@@ -13,10 +14,11 @@ export const authRoutes = async (app: FastifyInstance): Promise<void> => {
   app.post('/auth/login', login);
   app.get('/auth/me', { preHandler: requireAuth }, me);
 
+  app.get('/admin/app-users', { preHandler: [requireAuth, requireAdmin] }, adminListAppUsers);
   app.post('/admin/app-users', { preHandler: [requireAuth, requireAdmin] }, adminCreateAppUser);
-  app.put('/admin/app-users/:id', { preHandler: [requireAuth, requireAdmin] }, adminUpdateAppUser);
-  app.patch('/admin/app-users/:id/active', { preHandler: [requireAuth, requireAdmin] }, adminSetAppUserActive);
-  app.post(
+  app.patch('/admin/app-users/:id', { preHandler: [requireAuth, requireAdmin] }, adminUpdateAppUser);
+  app.patch('/admin/app-users/:id/status', { preHandler: [requireAuth, requireAdmin] }, adminSetAppUserActive);
+  app.patch(
     '/admin/app-users/:id/reset-password',
     { preHandler: [requireAuth, requireAdmin] },
     adminResetAppUserPassword

@@ -6,14 +6,16 @@ import {
   createAppUser,
   findAdminByEmail,
   findAdminById,
+  findAppProfileByCode,
   findAppUserByEmail,
   findAppUserById,
   hashPassword,
+  listAppUsers,
   resetAppUserPassword,
   setAppUserActiveState,
   updateAppUser
 } from './auth.service';
-import { AppUser, AuthRole, AuthTokenPayload } from './auth.types';
+import { AppUser, AppUserListItem, AuthRole, AuthTokenPayload } from './auth.types';
 
 interface LoginBody {
   email?: string;
@@ -24,14 +26,13 @@ interface CreateAppUserBody {
   email?: string;
   password?: string;
   name?: string;
-  profile_id?: string;
-  is_active?: boolean;
+  profile_code?: string;
 }
 
 interface UpdateAppUserBody {
   email?: string;
   name?: string;
-  profile_id?: string;
+  profile_code?: string;
 }
 
 interface UpdateAppUserActiveBody {
@@ -46,10 +47,18 @@ const sanitizeAppUser = (user: AppUser) => ({
   id: user.id,
   email: user.email,
   name: user.name,
-  profile_id: user.profile_id,
   profile_code: user.profile_code,
+  is_active: user.is_active
+});
+
+const sanitizeAppUserListItem = (user: AppUserListItem) => ({
+  id: user.id,
+  email: user.email,
+  name: user.name,
+  profile_code: user.profile_code,
+  profile_label: user.profile_label,
   is_active: user.is_active,
-  role: 'user' as const
+  created_at: user.created_at
 });
 
 const createTokenPayload = (input: {
@@ -214,10 +223,22 @@ export const adminCreateAppUser = async (
   reply: FastifyReply
 ): Promise<void> => {
   const body = request.body as CreateAppUserBody;
-  const { email, password, name, profile_id, is_active } = body;
+  const { email, password, name, profile_code } = body;
 
-  if (!email || !password || !profile_id) {
-    reply.status(400).send({ message: 'email, password e profile_id são obrigatórios.' });
+  if (!email || !password || !profile_code) {
+    reply.status(400).send({ message: 'email, password e profile_code são obrigatórios.' });
+    return;
+  }
+
+  if (profile_code === 'admin') {
+    reply.status(400).send({ message: 'profile_code admin não é permitido.' });
+    return;
+  }
+
+  const profile = await findAppProfileByCode(profile_code);
+
+  if (!profile) {
+    reply.status(400).send({ message: 'profile_code inválido.' });
     return;
   }
 
@@ -228,13 +249,18 @@ export const adminCreateAppUser = async (
       email: email.trim().toLowerCase(),
       password_hash: passwordHash,
       name: name?.trim() ?? null,
-      profile_id,
-      is_active
+      profile_id: profile.id,
+      is_active: true
     });
 
-    reply.status(201).send({ user: sanitizeAppUser(user) });
-  } catch (error) {
+    reply.status(201).send(sanitizeAppUser(user));
+  } catch (error: any) {
     request.log.error({ error }, 'Falha ao criar app_user');
+    if (error?.code === '23505') {
+      reply.status(409).send({ message: 'Email já cadastrado.' });
+      return;
+    }
+
     reply.status(400).send({ message: 'Não foi possível criar o usuário.' });
   }
 };
@@ -244,18 +270,34 @@ export const adminUpdateAppUser = async (
   reply: FastifyReply
 ): Promise<void> => {
   const { id } = request.params as { id: string };
-  const { email, name, profile_id } = request.body as UpdateAppUserBody;
+  const { email, name, profile_code } = request.body as UpdateAppUserBody;
 
-  if (!email && name === undefined && !profile_id) {
+  if (!email && name === undefined && !profile_code) {
     reply.status(400).send({ message: 'Informe ao menos um campo para atualizar.' });
     return;
+  }
+
+  let profileId: string | undefined;
+  if (profile_code) {
+    if (profile_code === 'admin') {
+      reply.status(400).send({ message: 'profile_code admin não é permitido.' });
+      return;
+    }
+
+    const profile = await findAppProfileByCode(profile_code);
+    if (!profile) {
+      reply.status(400).send({ message: 'profile_code inválido.' });
+      return;
+    }
+
+    profileId = profile.id;
   }
 
   try {
     const user = await updateAppUser(id, {
       email: email?.trim().toLowerCase(),
       name: name?.trim(),
-      profile_id
+      profile_id: profileId
     });
 
     if (!user) {
@@ -263,9 +305,14 @@ export const adminUpdateAppUser = async (
       return;
     }
 
-    reply.status(200).send({ user: sanitizeAppUser(user) });
-  } catch (error) {
+    reply.status(200).send(sanitizeAppUser(user));
+  } catch (error: any) {
     request.log.error({ error }, 'Falha ao atualizar app_user');
+    if (error?.code === '23505') {
+      reply.status(409).send({ message: 'Email já cadastrado.' });
+      return;
+    }
+
     reply.status(400).send({ message: 'Não foi possível atualizar o usuário.' });
   }
 };
@@ -289,7 +336,7 @@ export const adminSetAppUserActive = async (
     return;
   }
 
-  reply.status(200).send({ user: sanitizeAppUser(user) });
+  reply.status(200).send({ id: user.id, is_active: user.is_active });
 };
 
 export const adminResetAppUserPassword = async (
@@ -312,5 +359,10 @@ export const adminResetAppUserPassword = async (
     return;
   }
 
-  reply.status(204).send();
+  reply.status(200).send({ success: true });
+};
+
+export const adminListAppUsers = async (_request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+  const users = await listAppUsers();
+  reply.status(200).send(users.map(sanitizeAppUserListItem));
 };

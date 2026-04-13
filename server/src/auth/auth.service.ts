@@ -1,7 +1,7 @@
 import bcrypt from 'bcrypt';
 import { pool } from '../db/pool';
 import { env } from '../config/env';
-import { AdminUser, AppUser } from './auth.types';
+import { AdminUser, AppProfile, AppUser, AppUserListItem } from './auth.types';
 
 type AdminUserRecord = AdminUser & { password_hash: string };
 type AppUserRecord = AppUser & { password_hash: string };
@@ -13,6 +13,7 @@ interface AppUserRow {
   profile_id: string;
   profile_code: string;
   is_active: boolean;
+  created_at: string;
 }
 
 const appUserBaseSelect = `
@@ -21,7 +22,8 @@ const appUserBaseSelect = `
          u.name,
          u.profile_id,
          p.code AS profile_code,
-         u.is_active
+         u.is_active,
+         u.created_at
   FROM app_users u
   INNER JOIN app_profiles p ON p.id = u.profile_id
 `;
@@ -79,7 +81,7 @@ export const createAppUser = async (input: {
   const result = await pool.query<AppUserRow>(
     `INSERT INTO app_users (email, password_hash, name, profile_id, is_active)
      VALUES ($1, $2, $3, $4, COALESCE($5, true))
-     RETURNING id, email, name, profile_id, is_active`,
+     RETURNING id, email, name, profile_id, is_active, created_at`,
     [input.email, input.password_hash, input.name, input.profile_id, input.is_active]
   );
 
@@ -138,6 +140,34 @@ export const resetAppUserPassword = async (id: string, passwordHash: string): Pr
   );
 
   return Boolean(result.rows[0]);
+};
+
+export const listAppUsers = async (): Promise<AppUserListItem[]> => {
+  const result = await pool.query<AppUserListItem>(
+    `SELECT u.id,
+            u.email,
+            u.name,
+            p.code AS profile_code,
+            p.code AS profile_label,
+            u.is_active,
+            u.created_at
+       FROM app_users u
+       INNER JOIN app_profiles p ON p.id = u.profile_id
+      ORDER BY u.created_at ASC`
+  );
+
+  return result.rows;
+};
+
+export const findAppProfileByCode = async (code: string): Promise<AppProfile | null> => {
+  const result = await pool.query<AppProfile>(
+    `SELECT id, code
+       FROM app_profiles
+      WHERE code = $1`,
+    [code]
+  );
+
+  return result.rows[0] ?? null;
 };
 
 export const comparePassword = async (password: string, passwordHash: string): Promise<boolean> => {

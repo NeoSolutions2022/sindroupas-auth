@@ -65,5 +65,6 @@ export const requireAuth = async (request: FastifyRequest, reply: FastifyReply):
 export const requireAdmin = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
   if (!request.authUser || request.authUser.role !== 'admin') {
     reply.status(403).send({ message: 'Acesso negado.' });
+    return;
   }
 };
