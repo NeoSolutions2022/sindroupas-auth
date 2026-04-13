@@ -16,6 +16,7 @@ import {
   updateAppUser
 } from './auth.service';
 import { AppUser, AppUserListItem, AuthRole, AuthTokenPayload } from './auth.types';
+import { bootstrapDefaultAppUsers } from './app-user-bootstrap';
 
 interface LoginBody {
   email?: string;
@@ -365,4 +366,12 @@ export const adminResetAppUserPassword = async (
 export const adminListAppUsers = async (_request: FastifyRequest, reply: FastifyReply): Promise<void> => {
   const users = await listAppUsers();
   reply.status(200).send(users.map(sanitizeAppUserListItem));
+};
+
+export const adminBootstrapDefaultAppUsers = async (
+  _request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> => {
+  const result = await bootstrapDefaultAppUsers();
+  reply.status(200).send(result);
 };

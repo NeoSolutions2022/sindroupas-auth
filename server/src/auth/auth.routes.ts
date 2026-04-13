@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import {
+  adminBootstrapDefaultAppUsers,
   adminCreateAppUser,
   adminListAppUsers,
   adminResetAppUserPassword,
@@ -22,5 +23,10 @@ export const authRoutes = async (app: FastifyInstance): Promise<void> => {
     '/admin/app-users/:id/reset-password',
     { preHandler: [requireAuth, requireAdmin] },
     adminResetAppUserPassword
+  );
+  app.post(
+    '/admin/app-users/bootstrap-defaults',
+    { preHandler: [requireAuth, requireAdmin] },
+    adminBootstrapDefaultAppUsers
   );
 };
