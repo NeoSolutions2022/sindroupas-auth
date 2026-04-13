@@ -52,8 +52,16 @@ export const findAdminById = async (id: string): Promise<AdminUser | null> => {
 
 export const findAppUserByEmail = async (email: string): Promise<AppUserRecord | null> => {
   const result = await pool.query<AppUserRecord>(
-    `${appUserBaseSelect}
-     , u.password_hash
+    `SELECT u.id,
+            u.email,
+            u.name,
+            u.profile_id,
+            p.code AS profile_code,
+            u.is_active,
+            u.created_at,
+            u.password_hash
+       FROM app_users u
+       INNER JOIN app_profiles p ON p.id = u.profile_id
      WHERE u.email = $1`,
     [email]
   );
