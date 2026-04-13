@@ -1,5 +1,5 @@
 import { pool } from '../db/pool';
-import { appUsersHasAuthUserIdColumn, hashPassword } from './auth.service';
+import { getAppUsersColumnInfo, hashPassword } from './auth.service';
 
 interface DefaultAppUser {
   profile_code: string;
@@ -75,7 +75,7 @@ const DEFAULT_APP_USERS: DefaultAppUser[] = [
 
 export const bootstrapDefaultAppUsers = async (): Promise<AppUserBootstrapResult> => {
   const result: AppUserBootstrapResult = { created: [], skipped: [] };
-  const hasAuthUserIdColumn = await appUsersHasAuthUserIdColumn();
+  const columnInfo = await getAppUsersColumnInfo();
 
   for (const appUser of DEFAULT_APP_USERS) {
     if (appUser.profile_code === 'admin') {
@@ -114,19 +114,35 @@ export const bootstrapDefaultAppUsers = async (): Promise<AppUserBootstrapResult
 
     const passwordHash = await hashPassword(appUser.default_password);
 
-    if (hasAuthUserIdColumn) {
-      await pool.query(
-        `INSERT INTO app_users (email, password_hash, name, profile_id, is_active, auth_user_id)
-         VALUES ($1, $2, $3, $4, true, gen_random_uuid())`,
-        [appUser.email, passwordHash, appUser.name, profileId]
-      );
-    } else {
-      await pool.query(
-        `INSERT INTO app_users (email, password_hash, name, profile_id, is_active)
-         VALUES ($1, $2, $3, $4, true)`,
-        [appUser.email, passwordHash, appUser.name, profileId]
-      );
+    const columns: string[] = ['email', 'password_hash', 'profile_id', 'is_active'];
+    const values: string[] = [];
+    const params: Array<string | boolean> = [];
+    const addParam = (value: string | boolean): string => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+
+    values.push(addParam(appUser.email));
+    values.push(addParam(passwordHash));
+    values.push(addParam(profileId));
+    values.push('true');
+
+    if (columnInfo.hasName) {
+      columns.push('name');
+      values.push(addParam(appUser.name));
     }
+
+    if (columnInfo.hasFullName) {
+      columns.push('full_name');
+      values.push(addParam(appUser.name));
+    }
+
+    if (columnInfo.hasAuthUserId) {
+      columns.push('auth_user_id');
+      values.push('gen_random_uuid()');
+    }
+
+    await pool.query(`INSERT INTO app_users (${columns.join(', ')}) VALUES (${values.join(', ')})`, params);
 
     result.created.push({ email: appUser.email, profile_code: appUser.profile_code });
   }

@@ -28,17 +28,25 @@ const appUserBaseSelect = `
   INNER JOIN app_profiles p ON p.id = u.profile_id
 `;
 
-export const appUsersHasAuthUserIdColumn = async (): Promise<boolean> => {
-  const result = await pool.query<{ exists: boolean }>(
-    `SELECT EXISTS (
-      SELECT 1
+export const getAppUsersColumnInfo = async (): Promise<{
+  hasAuthUserId: boolean;
+  hasName: boolean;
+  hasFullName: boolean;
+}> => {
+  const result = await pool.query<{ column_name: string }>(
+    `SELECT column_name
       FROM information_schema.columns
       WHERE table_name = 'app_users'
-        AND column_name = 'auth_user_id'
-    ) AS exists`
+        AND column_name IN ('auth_user_id', 'name', 'full_name')`
   );
 
-  return Boolean(result.rows[0]?.exists);
+  const columns = new Set(result.rows.map((row) => row.column_name));
+
+  return {
+    hasAuthUserId: columns.has('auth_user_id'),
+    hasName: columns.has('name'),
+    hasFullName: columns.has('full_name')
+  };
 };
 
 export const findAdminByEmail = async (email: string): Promise<AdminUserRecord | null> => {
@@ -99,20 +107,42 @@ export const createAppUser = async (input: {
   profile_id: string;
   is_active?: boolean;
 }): Promise<AppUser> => {
-  const hasAuthUserIdColumn = await appUsersHasAuthUserIdColumn();
-  const result = hasAuthUserIdColumn
-    ? await pool.query<AppUserRow>(
-        `INSERT INTO app_users (email, password_hash, name, profile_id, is_active, auth_user_id)
-         VALUES ($1, $2, $3, $4, COALESCE($5, true), gen_random_uuid())
-         RETURNING id, email, name, profile_id, is_active, created_at`,
-        [input.email, input.password_hash, input.name, input.profile_id, input.is_active]
-      )
-    : await pool.query<AppUserRow>(
-        `INSERT INTO app_users (email, password_hash, name, profile_id, is_active)
-         VALUES ($1, $2, $3, $4, COALESCE($5, true))
-         RETURNING id, email, name, profile_id, is_active, created_at`,
-        [input.email, input.password_hash, input.name, input.profile_id, input.is_active]
-      );
+  const columnInfo = await getAppUsersColumnInfo();
+
+  const columns: string[] = ['email', 'password_hash', 'profile_id', 'is_active'];
+  const values: string[] = [];
+  const params: Array<string | boolean | null> = [];
+  const addParam = (value: string | boolean | null): string => {
+    params.push(value);
+    return `$${params.length}`;
+  };
+
+  values.push(addParam(input.email));
+  values.push(addParam(input.password_hash));
+  values.push(addParam(input.profile_id));
+  values.push(`COALESCE(${addParam(input.is_active ?? true)}, true)`);
+
+  if (columnInfo.hasName) {
+    columns.push('name');
+    values.push(addParam(input.name));
+  }
+
+  if (columnInfo.hasFullName) {
+    columns.push('full_name');
+    values.push(addParam(input.name));
+  }
+
+  if (columnInfo.hasAuthUserId) {
+    columns.push('auth_user_id');
+    values.push('gen_random_uuid()');
+  }
+
+  const result = await pool.query<AppUserRow>(
+    `INSERT INTO app_users (${columns.join(', ')})
+     VALUES (${values.join(', ')})
+     RETURNING id, email, name, profile_id, is_active, created_at`,
+    params
+  );
 
   const user = result.rows[0];
   return findAppUserById(user.id) as Promise<AppUser>;
