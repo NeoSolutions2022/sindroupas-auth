@@ -28,6 +28,19 @@ const appUserBaseSelect = `
   INNER JOIN app_profiles p ON p.id = u.profile_id
 `;
 
+export const appUsersHasAuthUserIdColumn = async (): Promise<boolean> => {
+  const result = await pool.query<{ exists: boolean }>(
+    `SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_name = 'app_users'
+        AND column_name = 'auth_user_id'
+    ) AS exists`
+  );
+
+  return Boolean(result.rows[0]?.exists);
+};
+
 export const findAdminByEmail = async (email: string): Promise<AdminUserRecord | null> => {
   const result = await pool.query<AdminUserRecord>(
     `SELECT id, email, name, role, status, password_hash
@@ -86,12 +99,20 @@ export const createAppUser = async (input: {
   profile_id: string;
   is_active?: boolean;
 }): Promise<AppUser> => {
-  const result = await pool.query<AppUserRow>(
-    `INSERT INTO app_users (email, password_hash, name, profile_id, is_active)
-     VALUES ($1, $2, $3, $4, COALESCE($5, true))
-     RETURNING id, email, name, profile_id, is_active, created_at`,
-    [input.email, input.password_hash, input.name, input.profile_id, input.is_active]
-  );
+  const hasAuthUserIdColumn = await appUsersHasAuthUserIdColumn();
+  const result = hasAuthUserIdColumn
+    ? await pool.query<AppUserRow>(
+        `INSERT INTO app_users (email, password_hash, name, profile_id, is_active, auth_user_id)
+         VALUES ($1, $2, $3, $4, COALESCE($5, true), gen_random_uuid())
+         RETURNING id, email, name, profile_id, is_active, created_at`,
+        [input.email, input.password_hash, input.name, input.profile_id, input.is_active]
+      )
+    : await pool.query<AppUserRow>(
+        `INSERT INTO app_users (email, password_hash, name, profile_id, is_active)
+         VALUES ($1, $2, $3, $4, COALESCE($5, true))
+         RETURNING id, email, name, profile_id, is_active, created_at`,
+        [input.email, input.password_hash, input.name, input.profile_id, input.is_active]
+      );
 
   const user = result.rows[0];
   return findAppUserById(user.id) as Promise<AppUser>;

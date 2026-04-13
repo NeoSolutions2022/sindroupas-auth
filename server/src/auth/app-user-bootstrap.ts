@@ -1,5 +1,5 @@
 import { pool } from '../db/pool';
-import { hashPassword } from './auth.service';
+import { appUsersHasAuthUserIdColumn, hashPassword } from './auth.service';
 
 interface DefaultAppUser {
   profile_code: string;
@@ -75,6 +75,7 @@ const DEFAULT_APP_USERS: DefaultAppUser[] = [
 
 export const bootstrapDefaultAppUsers = async (): Promise<AppUserBootstrapResult> => {
   const result: AppUserBootstrapResult = { created: [], skipped: [] };
+  const hasAuthUserIdColumn = await appUsersHasAuthUserIdColumn();
 
   for (const appUser of DEFAULT_APP_USERS) {
     if (appUser.profile_code === 'admin') {
@@ -113,11 +114,19 @@ export const bootstrapDefaultAppUsers = async (): Promise<AppUserBootstrapResult
 
     const passwordHash = await hashPassword(appUser.default_password);
 
-    await pool.query(
-      `INSERT INTO app_users (email, password_hash, name, profile_id, is_active)
-       VALUES ($1, $2, $3, $4, true)`,
-      [appUser.email, passwordHash, appUser.name, profileId]
-    );
+    if (hasAuthUserIdColumn) {
+      await pool.query(
+        `INSERT INTO app_users (email, password_hash, name, profile_id, is_active, auth_user_id)
+         VALUES ($1, $2, $3, $4, true, gen_random_uuid())`,
+        [appUser.email, passwordHash, appUser.name, profileId]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO app_users (email, password_hash, name, profile_id, is_active)
+         VALUES ($1, $2, $3, $4, true)`,
+        [appUser.email, passwordHash, appUser.name, profileId]
+      );
+    }
 
     result.created.push({ email: appUser.email, profile_code: appUser.profile_code });
   }
