@@ -19,7 +19,7 @@ export const buildApp = () => {
 
   app.register(cors, {
     origin: resolveCorsOrigin(),
-    methods: ['GET', 'POST', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
   });
 

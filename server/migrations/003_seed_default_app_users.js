@@ -1,0 +1,105 @@
+exports.shorthands = undefined;
+
+exports.up = (pgm) => {
+  pgm.sql(`
+    DO $$
+    DECLARE
+      has_auth_user_id boolean;
+      has_name boolean;
+      has_full_name boolean;
+      insert_columns text := 'email, password_hash, profile_id, is_active';
+      insert_values text := 'c.email, crypt(c.raw_password, gen_salt(''bf'', 12)), c.profile_id, true';
+      sql_stmt text;
+    BEGIN
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'app_users'
+          AND column_name = 'auth_user_id'
+      ) INTO has_auth_user_id;
+
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'app_users'
+          AND column_name = 'name'
+      ) INTO has_name;
+
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'app_users'
+          AND column_name = 'full_name'
+      ) INTO has_full_name;
+
+      IF has_name THEN
+        insert_columns := insert_columns || ', name';
+        insert_values := insert_values || ', c.name';
+      END IF;
+
+      IF has_full_name THEN
+        insert_columns := insert_columns || ', full_name';
+        insert_values := insert_values || ', c.name';
+      END IF;
+
+      IF has_auth_user_id THEN
+        insert_columns := insert_columns || ', auth_user_id';
+        insert_values := insert_values || ', gen_random_uuid()';
+      END IF;
+
+      sql_stmt := format(
+        'WITH defaults AS (
+           SELECT *
+           FROM (
+             VALUES
+               (''william_representatividade'', ''William'', ''william.representatividade@sindroupas.local'', ''William@123''),
+               (''diretor_comercial'', ''Diretor Comercial'', ''diretor.comercial@sindroupas.local'', ''DiretorComercial@123''),
+               (''vice_presidente'', ''Vice-Presidente'', ''vice.presidente@sindroupas.local'', ''VicePresidente@123''),
+               (''dir_evento_treinamento'', ''Dir. Evento e Treinamento'', ''dir.evento.treinamento@sindroupas.local'', ''DirEventoTreinamento@123''),
+               (''dir_inovacao_esg'', ''Dir. Inovação e ESG'', ''dir.inovacao.esg@sindroupas.local'', ''DirInovacaoESG@123''),
+               (''dir_financeiro'', ''Dir. Financeiro'', ''dir.financeiro@sindroupas.local'', ''DirFinanceiro@123''),
+               (''coordenacao_executiva'', ''Coordenação Executiva'', ''coordenacao.executiva@sindroupas.local'', ''CoordenacaoExecutiva@123'')
+           ) AS t(profile_code, name, email, raw_password)
+         ),
+         candidates AS (
+           SELECT d.profile_code,
+                  d.name,
+                  lower(d.email) AS email,
+                  d.raw_password,
+                  p.id AS profile_id
+           FROM defaults d
+           INNER JOIN app_profiles p ON p.code = d.profile_code
+           WHERE d.profile_code <> ''admin''
+         )
+         INSERT INTO app_users (%s)
+         SELECT %s
+         FROM candidates c
+         WHERE NOT EXISTS (
+           SELECT 1
+           FROM app_users u
+           WHERE lower(u.email) = c.email
+              OR u.profile_id = c.profile_id
+         )',
+        insert_columns,
+        insert_values
+      );
+
+      EXECUTE sql_stmt;
+    END $$;
+  `);
+};
+
+exports.down = (pgm) => {
+  pgm.sql(`
+    DELETE FROM app_users
+    WHERE lower(email) IN (
+      'william.representatividade@sindroupas.local',
+      'diretor.comercial@sindroupas.local',
+      'vice.presidente@sindroupas.local',
+      'dir.evento.treinamento@sindroupas.local',
+      'dir.inovacao.esg@sindroupas.local',
+      'dir.financeiro@sindroupas.local',
+      'coordenacao.executiva@sindroupas.local'
+    );
+  `);
+};
